@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:async/async.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_offline/src/utils.dart';
+import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 
 const kOfflineDebounceDuration = Duration(seconds: 3);
@@ -18,6 +20,7 @@ class OfflineBuilder extends StatefulWidget {
     WidgetBuilder? builder,
     Widget? child,
     WidgetBuilder? errorBuilder,
+    Duration? pingCheck,
   }) {
     return OfflineBuilder.initialize(
       key: key,
@@ -28,6 +31,7 @@ class OfflineBuilder extends StatefulWidget {
       builder: builder,
       errorBuilder: errorBuilder,
       child: child,
+      pingCheck: pingCheck,
     );
   }
 
@@ -41,6 +45,7 @@ class OfflineBuilder extends StatefulWidget {
     this.builder,
     this.child,
     this.errorBuilder,
+    this.pingCheck,
   })  : assert(
             !(builder is WidgetBuilder && child is Widget) &&
                 !(builder == null && child == null),
@@ -67,6 +72,8 @@ class OfflineBuilder extends StatefulWidget {
   /// Used for building the error widget incase of any platform errors
   final WidgetBuilder? errorBuilder;
 
+  final Duration? pingCheck;
+
   @override
   OfflineBuilderState createState() => OfflineBuilderState();
 }
@@ -78,12 +85,34 @@ class OfflineBuilderState extends State<OfflineBuilder> {
   void initState() {
     super.initState();
 
-    _connectivityStream =
+    final List<Stream<OfflineBuilderResult>> groupStreams = [];
+
+    if (widget.pingCheck != null) {
+      final tempPeriodicStream = Stream.periodic(widget.pingCheck!, (_) async {
+        final connectivity =
+            await widget.connectivityService.checkConnectivity();
+        final hasConnection = await InternetConnectionChecker().hasConnection;
+        return OfflineBuilderResult(connectivity, hasConnection);
+      }).asyncMap((event) => event);
+
+      groupStreams.add(tempPeriodicStream);
+    }
+
+    final tempConnectivityStream =
         Stream.fromFuture(widget.connectivityService.checkConnectivity())
             .asyncExpand((data) => widget
                 .connectivityService.onConnectivityChanged
                 .transform(startsWith(data)))
             .transform(debounce(widget.debounceDuration));
+
+    groupStreams.add(tempConnectivityStream);
+
+    _connectivityStream = StreamGroup.merge(groupStreams);
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
   }
 
   @override
