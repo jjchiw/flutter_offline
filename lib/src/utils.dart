@@ -1,15 +1,18 @@
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:internet_connection_checker/internet_connection_checker.dart';
 
-StreamTransformer<ConnectivityResult, ConnectivityResult> debounce(
+StreamTransformer<OfflineBuilderResult, OfflineBuilderResult> debounce(
   Duration debounceDuration,
 ) {
   var _seenFirstData = false;
   Timer? _debounceTimer;
 
-  return StreamTransformer<ConnectivityResult, ConnectivityResult>.fromHandlers(
-    handleData: (ConnectivityResult data, EventSink<ConnectivityResult> sink) {
+  return StreamTransformer<OfflineBuilderResult,
+      OfflineBuilderResult>.fromHandlers(
+    handleData:
+        (OfflineBuilderResult data, EventSink<OfflineBuilderResult> sink) {
       if (_seenFirstData) {
         _debounceTimer?.cancel();
         _debounceTimer = Timer(debounceDuration, () => sink.add(data));
@@ -18,34 +21,41 @@ StreamTransformer<ConnectivityResult, ConnectivityResult> debounce(
         _seenFirstData = true;
       }
     },
-    handleDone: (EventSink<ConnectivityResult> sink) {
+    handleDone: (EventSink<OfflineBuilderResult> sink) {
       _debounceTimer?.cancel();
       sink.close();
     },
   );
 }
 
-StreamTransformer<ConnectivityResult, ConnectivityResult> startsWith(
+StreamTransformer<ConnectivityResult, OfflineBuilderResult> startsWith(
   ConnectivityResult data,
 ) {
-  return StreamTransformer<ConnectivityResult, ConnectivityResult>(
+  return StreamTransformer<ConnectivityResult, OfflineBuilderResult>(
     (
       Stream<ConnectivityResult> input,
       bool cancelOnError,
     ) {
-      StreamController<ConnectivityResult>? controller;
+      StreamController<OfflineBuilderResult>? controller;
       late StreamSubscription<ConnectivityResult> subscription;
 
-      controller = StreamController<ConnectivityResult>(
+      controller = StreamController<OfflineBuilderResult>(
         sync: true,
-        onListen: () => controller?.add(data),
-        onPause: ([Future<dynamic>? resumeSignal]) => subscription.pause(resumeSignal),
+        onListen: () async {
+          final hasConnection = await InternetConnectionChecker().hasConnection;
+          controller?.add(OfflineBuilderResult(data, hasConnection));
+        },
+        onPause: ([Future<dynamic>? resumeSignal]) =>
+            subscription.pause(resumeSignal),
         onResume: () => subscription.resume(),
         onCancel: () => subscription.cancel(),
       );
 
       subscription = input.listen(
-        controller.add,
+        (x) async {
+          final hasConnection = await InternetConnectionChecker().hasConnection;
+          controller?.add(OfflineBuilderResult(data, hasConnection));
+        },
         onError: controller.addError,
         onDone: controller.close,
         cancelOnError: cancelOnError,
@@ -54,4 +64,11 @@ StreamTransformer<ConnectivityResult, ConnectivityResult> startsWith(
       return controller.stream.listen(null);
     },
   );
+}
+
+class OfflineBuilderResult {
+  OfflineBuilderResult(this.connectivityResult, this.hasConnection);
+
+  final ConnectivityResult connectivityResult;
+  final bool hasConnection;
 }
