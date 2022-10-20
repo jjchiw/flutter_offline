@@ -54,7 +54,7 @@ StreamTransformer<ConnectivityResult, OfflineBuilderResult> startsWith(
       subscription = input.listen(
         (x) async {
           final hasConnection = await InternetConnectionChecker().hasConnection;
-          controller?.add(OfflineBuilderResult(data, hasConnection));
+          controller?.add(OfflineBuilderResult(x, hasConnection));
         },
         onError: controller.addError,
         onDone: controller.close,
