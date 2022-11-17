@@ -17,36 +17,38 @@ class OfflineBuilder extends StatefulWidget {
     Key? key,
     required ValueWidgetBuilder<OfflineBuilderResult> connectivityBuilder,
     Duration debounceDuration = kOfflineDebounceDuration,
+    Widget? loadingWidget,
     WidgetBuilder? builder,
     Widget? child,
     WidgetBuilder? errorBuilder,
     Duration? pingCheck,
   }) {
     return OfflineBuilder.initialize(
-      key: key,
-      connectivityBuilder: connectivityBuilder,
-      connectivityService: Connectivity(),
-      wifiInfo: NetworkInfo(),
-      debounceDuration: debounceDuration,
-      builder: builder,
-      errorBuilder: errorBuilder,
-      child: child,
-      pingCheck: pingCheck,
-    );
+        key: key,
+        connectivityBuilder: connectivityBuilder,
+        connectivityService: Connectivity(),
+        wifiInfo: NetworkInfo(),
+        debounceDuration: debounceDuration,
+        builder: builder,
+        errorBuilder: errorBuilder,
+        child: child,
+        pingCheck: pingCheck,
+        loadingWidget: loadingWidget);
   }
 
   @visibleForTesting
-  const OfflineBuilder.initialize({
-    Key? key,
-    required this.connectivityBuilder,
-    required this.connectivityService,
-    required this.wifiInfo,
-    this.debounceDuration = kOfflineDebounceDuration,
-    this.builder,
-    this.child,
-    this.errorBuilder,
-    this.pingCheck,
-  })  : assert(
+  const OfflineBuilder.initialize(
+      {Key? key,
+      required this.connectivityBuilder,
+      required this.connectivityService,
+      required this.wifiInfo,
+      this.debounceDuration = kOfflineDebounceDuration,
+      this.builder,
+      this.child,
+      this.errorBuilder,
+      this.pingCheck,
+      this.loadingWidget})
+      : assert(
             !(builder is WidgetBuilder && child is Widget) &&
                 !(builder == null && child == null),
             'You should specify either a builder or a child'),
@@ -73,6 +75,8 @@ class OfflineBuilder extends StatefulWidget {
   final WidgetBuilder? errorBuilder;
 
   final Duration? pingCheck;
+
+  final Widget? loadingWidget;
 
   @override
   OfflineBuilderState createState() => OfflineBuilderState();
@@ -122,7 +126,7 @@ class OfflineBuilderState extends State<OfflineBuilder> {
       builder:
           (BuildContext context, AsyncSnapshot<OfflineBuilderResult> snapshot) {
         if (!snapshot.hasData && !snapshot.hasError) {
-          return const SizedBox();
+          return widget.loadingWidget ?? const SizedBox();
         }
 
         if (snapshot.hasError) {
